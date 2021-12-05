@@ -15,11 +15,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn run() -> Result<(), Box<dyn std::error::Error>> {
   let mut rng = thread_rng();
 
-  let map = Map::gen_map(200, 100);
+  let map = Map::gen_map(100, 100);
 
-  let people: Vec<_> = (0..50)
+  let people: Vec<_> = (0..100)
     .map(|_| Person {
-      brain: Map::gen_brain(200, 100),
+      brain: Map::gen_brain(map.width(), map.height()),
       x: rng.gen_range(0..map.width()),
       y: rng.gen_range(0..map.height()),
     })
@@ -212,8 +212,6 @@ struct Person {
   x: usize,
   y: usize,
 }
-
-impl Person {}
 
 struct ImageGrid {
   img: RgbImage,
