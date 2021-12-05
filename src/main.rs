@@ -1,7 +1,11 @@
 use image::{ImageBuffer, Rgb, RgbImage};
-use ndarray::Array2;
+use ndarray::{s, Array2};
 use rand::Rng;
-use show_image::{create_window, event::WindowEvent, WindowOptions};
+use show_image::{
+  create_window,
+  event::{VirtualKeyCode, WindowEvent},
+  WindowOptions,
+};
 
 #[show_image::main]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -10,7 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
   let map = Map::gen_map(200, 100);
-  let people = vec![Person {
+  let mut people = vec![Person {
     brain: Map::gen_brain(200, 100),
     x: 50,
     y: 50,
@@ -56,12 +60,56 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
   for event in brain_window.event_channel()? {
     if let WindowEvent::KeyboardInput(event) = event {
-      if event.input.state.is_pressed() {
-        selected_person = (selected_person + 1) % people.len();
-        brain_window
-          .set_image("brain", people[selected_person].brain.as_image())?;
-        people_map_window
-          .set_image("people", map_of_people(&map, &people, selected_person))?;
+      if !event.input.state.is_pressed() {
+        continue;
+      }
+      match event.input.key_code {
+        event @ Some(VirtualKeyCode::Left | VirtualKeyCode::Right) => {
+          match event {
+            Some(VirtualKeyCode::Left) => {
+              selected_person =
+                selected_person.checked_sub(1).unwrap_or(people.len() - 1);
+            }
+            Some(VirtualKeyCode::Right) => {
+              selected_person = (selected_person + 1) % people.len();
+            }
+            _ => {
+              unreachable!()
+            }
+          };
+
+          brain_window
+            .set_image("brain", people[selected_person].brain.as_image())?;
+          people_map_window.set_image(
+            "people",
+            map_of_people(&map, &people, selected_person),
+          )?;
+        }
+        Some(VirtualKeyCode::Space) => {
+          for person in people.iter_mut() {
+            let sense_range = 5;
+            let min_x = person.x.saturating_sub(sense_range);
+            let max_x = (person.x + sense_range).min(map.width());
+
+            let min_y = person.y.saturating_sub(sense_range);
+            let max_y = (person.y + sense_range).min(map.height());
+
+            person
+              .brain
+              .map
+              .slice_mut(s![min_x..max_x, min_y..max_y])
+              .zip_mut_with(
+                &map.map.slice(s![min_x..max_x, min_y..max_y]),
+                |b, m| {
+                  *b = (*b + *m) / 2.0;
+                },
+              );
+          }
+          brain_window
+            .set_image("brain", people[selected_person].brain.as_image())?;
+          mse_window.set_image("mse", mse_of_brains(&map, &people))?;
+        }
+        _ => {}
       }
     }
   }
