@@ -1,6 +1,6 @@
 use image::{ImageBuffer, Rgb, RgbImage};
 use ndarray::{s, Array2};
-use rand::Rng;
+use rand::{thread_rng, Rng};
 use show_image::{
   create_window,
   event::{VirtualKeyCode, WindowEvent},
@@ -13,12 +13,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
+  let mut rng = thread_rng();
   let map = Map::gen_map(200, 100);
-  let mut people = vec![Person {
-    brain: Map::gen_brain(200, 100),
-    x: 50,
-    y: 50,
-  }];
+
+  let mut people: Vec<_> = (0..50)
+    .map(|_| Person {
+      brain: Map::gen_brain(200, 100),
+      x: rng.gen_range(0..map.width()),
+      y: rng.gen_range(0..map.height()),
+    })
+    .collect();
   let mut selected_person = 0;
 
   let map_window = create_window(
