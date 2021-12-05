@@ -1,6 +1,6 @@
 use image::{GenericImage, ImageBuffer, Rgb, RgbImage, SubImage};
 use ndarray::{s, Array2};
-use rand::{thread_rng, Rng};
+use rand::prelude::*;
 use show_image::{
   create_window,
   event::{VirtualKeyCode, WindowEvent},
@@ -78,6 +78,15 @@ impl State {
   }
 
   fn update(&mut self) {
+    let mut rng = thread_rng();
+
+    for person in self.people.iter_mut() {
+      person
+        .brain
+        .map
+        .mapv_inplace(|v| (v + rng.gen_range(-0.01..=0.01)).clamp(0.0, 1.0));
+    }
+
     for person in self.people.iter_mut() {
       let sense_range = 5;
       let min_x = person.x.saturating_sub(sense_range);
@@ -96,6 +105,27 @@ impl State {
             *b = (*b + *m) / 2.0;
           },
         );
+    }
+
+    let mut shuffled_mut: Vec<_> = self.people.iter_mut().collect();
+    shuffled_mut.shuffle(&mut rng);
+    let mut iter = shuffled_mut.into_iter();
+    while iter.len() != 0 {
+      let a = if let Some(a) = iter.next() {
+        a
+      } else {
+        break;
+      };
+
+      let b = if let Some(b) = iter.next() {
+        b
+      } else {
+        break;
+      };
+
+      let average = (&a.brain.map + &b.brain.map) / 2.0;
+      a.brain.map = average.clone();
+      b.brain.map = average;
     }
   }
 
