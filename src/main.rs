@@ -142,9 +142,9 @@ impl State {
       for (i, person) in self.people.iter().enumerate() {
         *buffer.get_pixel_mut(person.x as u32, person.y as u32) =
           if self.selected_person == i {
-            Rgb([0, 255, 0])
+            Rgb([255, 255, 255])
           } else {
-            Rgb([255, 0, 0])
+            Rgb([255, 255, 0])
           };
       }
     }
@@ -286,13 +286,17 @@ struct Person {
 enum Resource {
   None,
   Food,
+  Water,
+  Stone,
 }
 
 impl Resource {
   fn color(&self) -> Color {
     Color(match self {
       Resource::None => [0.0, 0.0, 0.0],
-      Resource::Food => [1.0, 1.0, 1.0],
+      Resource::Food => [0.0, 1.0, 0.0],
+      Resource::Water => [0.0, 0.0, 1.0],
+      Resource::Stone => [0.5, 0.5, 0.5],
     })
   }
 }
