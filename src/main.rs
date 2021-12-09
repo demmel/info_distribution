@@ -1,7 +1,8 @@
-use std::ops::Mul;
+mod graphics;
 
 use enum_ordinalize::Ordinalize;
-use image::{GenericImage, ImageBuffer, Rgb, RgbImage, SubImage};
+use graphics::{Color, ColorMixer, ImageGrid};
+use image::{GenericImage, Rgb, RgbImage, SubImage};
 use ndarray::{s, Array2, Array3, Axis};
 use rand::prelude::*;
 use show_image::{
@@ -292,12 +293,13 @@ enum Resource {
 
 impl Resource {
   fn color(&self) -> Color {
-    Color(match self {
+    match self {
       Resource::None => [0.0, 0.0, 0.0],
       Resource::Food => [0.0, 1.0, 0.0],
       Resource::Water => [0.0, 0.0, 1.0],
       Resource::Stone => [0.5, 0.5, 0.5],
-    })
+    }
+    .into()
   }
 }
 
@@ -358,96 +360,5 @@ impl From<&ResourceProbability> for Color {
       mixer.mix_weighted(&Resource::from_ordinal(i as i8).unwrap().color(), *p);
     }
     mixer.into()
-  }
-}
-
-struct ImageGrid {
-  img: RgbImage,
-  width: usize,
-  height: usize,
-}
-
-impl ImageGrid {
-  fn new(width: usize, height: usize, c: usize, r: usize) -> Self {
-    let img: RgbImage = ImageBuffer::new(
-      (c * width + (c - 1)) as u32,
-      (r * height + (r - 1)) as u32,
-    );
-    Self { img, width, height }
-  }
-
-  fn into_inner(self) -> RgbImage {
-    self.img
-  }
-
-  fn grid_mut(&mut self, c: usize, r: usize) -> SubImage<&mut RgbImage> {
-    self.img.sub_image(
-      (c * (self.width + 1)) as u32,
-      (r * (self.height + 1)) as u32,
-      self.width as u32,
-      self.height as u32,
-    )
-  }
-}
-
-struct Color([f64; 3]);
-
-impl Mul<f64> for Color {
-  type Output = Color;
-
-  fn mul(mut self, rhs: f64) -> Self::Output {
-    for v in self.0.iter_mut() {
-      *v *= rhs;
-    }
-    self
-  }
-}
-
-impl From<Color> for Rgb<u8> {
-  fn from(color: Color) -> Self {
-    [
-      (color.0[0] * 255.0) as u8,
-      (color.0[1] * 255.0) as u8,
-      (color.0[2] * 255.0) as u8,
-    ]
-    .into()
-  }
-}
-
-struct ColorMixer {
-  mixer: [f64; 3],
-  weight: f64,
-}
-
-impl ColorMixer {
-  fn new() -> Self {
-    Self {
-      mixer: [0.0; 3],
-      weight: 0.0,
-    }
-  }
-
-  fn mix(&mut self, color: &Color) {
-    for (v, c) in self.mixer.iter_mut().zip(color.0) {
-      *v += c;
-    }
-    self.weight += 1.0;
-  }
-
-  fn mix_weighted(&mut self, color: &Color, weight: f64) {
-    for (v, c) in self.mixer.iter_mut().zip(color.0) {
-      *v += weight * c;
-    }
-    self.weight += weight
-  }
-}
-
-impl From<ColorMixer> for Color {
-  fn from(mixer: ColorMixer) -> Self {
-    let ColorMixer { mut mixer, weight } = mixer;
-    for v in mixer.iter_mut() {
-      *v /= weight
-    }
-    Color(mixer)
   }
 }
