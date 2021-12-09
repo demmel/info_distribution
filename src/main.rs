@@ -88,10 +88,12 @@ impl State {
   fn update(&mut self) {
     let mut rng = thread_rng();
 
+    // Memory degradation
     for person in self.people.iter_mut() {
       person.brain.0.map_inplace(|v| v.resdistribute(0.001));
     }
 
+    // Perception
     for person in self.people.iter_mut() {
       let sense_range = 5;
       let min_x = person.x.saturating_sub(sense_range);
@@ -110,6 +112,7 @@ impl State {
         );
     }
 
+    // Communication
     let mut shuffled_mut: Vec<_> = self.people.iter_mut().collect();
     shuffled_mut.shuffle(&mut rng);
     let mut iter = shuffled_mut.into_iter();
