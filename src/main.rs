@@ -84,7 +84,7 @@ impl State {
     let mut rng = thread_rng();
 
     for person in self.people.iter_mut() {
-      person.brain.0.map_inplace(|v| v.resdistribute(0.01));
+      person.brain.0.map_inplace(|v| v.resdistribute(0.001));
     }
 
     for person in self.people.iter_mut() {
