@@ -19,21 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn run() -> Result<(), Box<dyn std::error::Error>> {
   let mut rng = thread_rng();
 
-  let map = Map::gen(&mut rng, 100, 100);
-
-  let people: Vec<_> = (0..100)
-    .map(|_| Person {
-      brain: Brain::gen(&mut rng, map.width(), map.height()),
-      x: rng.gen_range(0..map.width()),
-      y: rng.gen_range(0..map.height()),
-    })
-    .collect();
-
-  let mut state = State {
-    map,
-    people,
-    selected_person: 0,
-  };
+  let mut state = State::gen(&mut rng);
 
   let window = create_window(
     "Info Distribution",
@@ -70,6 +56,24 @@ struct State {
 }
 
 impl State {
+  fn gen<R: Rng>(rng: &mut R) -> Self {
+    let map = Map::gen(rng, 100, 100);
+
+    let people: Vec<_> = (0..100)
+      .map(|_| Person {
+        brain: Brain::gen(rng, map.width(), map.height()),
+        x: rng.gen_range(0..map.width()),
+        y: rng.gen_range(0..map.height()),
+      })
+      .collect();
+
+    Self {
+      map,
+      people,
+      selected_person: 0,
+    }
+  }
+
   fn select_previous_person(&mut self) {
     self.selected_person = self
       .selected_person
@@ -122,13 +126,23 @@ impl State {
         break;
       };
 
-      let tmp = a.brain.clone();
-      a.brain.0.zip_mut_with(&b.brain.0, |a, b| {
-        a.average_assign(b);
-      });
-      b.brain.0.zip_mut_with(&tmp.0, |a, b| {
-        a.average_assign(b);
-      });
+      let (a_i, a_share): (Vec<_>, Vec<_>) = a
+        .brain
+        .0
+        .indexed_iter()
+        .choose_multiple(&mut rng, 100)
+        .into_iter()
+        .unzip();
+      let a_share: Vec<_> =
+        a_i.into_iter().zip(a_share.into_iter().cloned()).collect();
+      let b_share = b.brain.0.indexed_iter().choose_multiple(&mut rng, 100);
+
+      for (i, share) in b_share {
+        a.brain.0[i].average_assign(share);
+      }
+      for (i, share) in a_share {
+        b.brain.0[i].average_assign(&share);
+      }
     }
   }
 
