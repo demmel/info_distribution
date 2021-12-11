@@ -57,9 +57,9 @@ struct State {
 
 impl State {
   fn gen<R: Rng>(rng: &mut R) -> Self {
-    let map = Map::gen(rng, 100, 100);
+    let map = Map::gen(rng, 200, 200);
 
-    let people: Vec<_> = (0..100)
+    let people: Vec<_> = (0..10)
       .map(|_| Person {
         brain: Brain::gen(rng, map.width(), map.height()),
         x: rng.gen_range(0..map.width()),
@@ -90,7 +90,7 @@ impl State {
 
     // Memory degradation
     for person in self.people.iter_mut() {
-      person.brain.0.map_inplace(|v| v.resdistribute(0.001));
+      person.brain.map.map_inplace(|v| v.resdistribute(0.001));
     }
 
     // Perception
@@ -104,12 +104,33 @@ impl State {
 
       person
         .brain
-        .0
+        .map
         .slice_mut(s![min_x..max_x, min_y..max_y])
         .zip_mut_with(
           &self.map.0.slice(s![min_x..max_x, min_y..max_y]),
           |b, m| b.average_assign(&ResourceProbability::certain(*m)),
         );
+    }
+
+    // Move
+    for person in self.people.iter_mut() {
+      let dx = person.brain.dest.0 as isize - person.x as isize;
+      let dy = person.brain.dest.1 as isize - person.y as isize;
+
+      if dx == 0 && dy == 0 {
+        if person.x == person.brain.home.0 && person.y == person.brain.home.1 {
+          person.brain.dest = (
+            rng.gen_range(0..self.map.width()),
+            rng.gen_range(0..self.map.height()),
+          );
+        } else {
+          person.brain.dest = person.brain.home;
+        }
+      } else if dx.abs() > dy.abs() {
+        person.x = (person.x as isize + dx.signum()) as usize;
+      } else {
+        person.y = (person.y as isize + dy.signum()) as usize;
+      }
     }
 
     // Communication
@@ -131,44 +152,77 @@ impl State {
 
       let (a_i, a_share): (Vec<_>, Vec<_>) = a
         .brain
-        .0
+        .map
         .indexed_iter()
         .choose_multiple(&mut rng, 100)
         .into_iter()
         .unzip();
       let a_share: Vec<_> =
         a_i.into_iter().zip(a_share.into_iter().cloned()).collect();
-      let b_share = b.brain.0.indexed_iter().choose_multiple(&mut rng, 100);
+      let b_share = b.brain.map.indexed_iter().choose_multiple(&mut rng, 100);
 
       for (i, share) in b_share {
-        a.brain.0[i].average_assign(share);
+        a.brain.map[i].average_assign(share);
       }
       for (i, share) in a_share {
-        b.brain.0[i].average_assign(&share);
+        b.brain.map[i].average_assign(&share);
       }
     }
   }
 
   fn draw(&self) -> RgbImage {
-    let mut img = ImageGrid::new(self.map.width(), self.map.height(), 2, 2);
+    let mut img = ImageGrid::new(self.map.width(), self.map.height(), 3, 2);
+    let selected_person = &self.people[self.selected_person];
 
     {
       let mut buffer = img.grid_mut(0, 0);
 
       self.map.draw(&mut buffer);
+    }
+
+    {
+      let mut buffer = img.grid_mut(0, 1);
 
       for (i, person) in self.people.iter().enumerate() {
         *buffer.get_pixel_mut(person.x as u32, person.y as u32) =
           if self.selected_person == i {
             Rgb([255, 255, 255])
           } else {
-            Rgb([255, 255, 0])
+            Rgb([255, 0, 0])
           };
       }
     }
 
     {
-      let mut buffer = img.grid_mut(0, 1);
+      let mut buffer = img.grid_mut(1, 0);
+
+      selected_person.brain.draw(&mut buffer);
+    }
+
+    {
+      let mut buffer = img.grid_mut(2, 0);
+
+      let error = Array2::from_shape_vec(
+        self.map.0.raw_dim(),
+        selected_person
+          .brain
+          .map
+          .map(|v| v.plurality())
+          .iter()
+          .zip(self.map.0.iter())
+          .map(|(b, m)| b != m)
+          .collect(),
+      )
+      .unwrap();
+
+      for ((x, y), v) in error.indexed_iter() {
+        let as_u8 = if *v { 255 } else { 0 };
+        *buffer.get_pixel_mut(x as u32, y as u32) = Rgb([as_u8, as_u8, as_u8]);
+      }
+    }
+
+    {
+      let mut buffer = img.grid_mut(2, 1);
 
       let mut votes = Array3::from_elem(
         (
@@ -180,7 +234,7 @@ impl State {
       );
 
       for person in self.people.iter() {
-        for ((x, y), v) in person.brain.0.indexed_iter() {
+        for ((x, y), v) in person.brain.map.indexed_iter() {
           *votes
             .get_mut((x, y, v.plurality().ordinal() as usize))
             .unwrap() += 1;
@@ -197,36 +251,6 @@ impl State {
       let error = Array2::from_shape_vec(
         self.map.0.raw_dim(),
         collective_view
-          .iter()
-          .zip(self.map.0.iter())
-          .map(|(b, m)| b != m)
-          .collect(),
-      )
-      .unwrap();
-
-      for ((x, y), v) in error.indexed_iter() {
-        let as_u8 = if *v { 255 } else { 0 };
-        *buffer.get_pixel_mut(x as u32, y as u32) = Rgb([as_u8, as_u8, as_u8]);
-      }
-    }
-
-    let selected_person = &self.people[self.selected_person];
-
-    {
-      let mut buffer = img.grid_mut(1, 0);
-
-      selected_person.brain.draw(&mut buffer);
-    }
-
-    {
-      let mut buffer = img.grid_mut(1, 1);
-
-      let error = Array2::from_shape_vec(
-        self.map.0.raw_dim(),
-        selected_person
-          .brain
-          .0
-          .map(|v| v.plurality())
           .iter()
           .zip(self.map.0.iter())
           .map(|(b, m)| b != m)
@@ -270,27 +294,33 @@ impl Map {
 }
 
 #[derive(Clone)]
-struct Brain(Array2<ResourceProbability>);
+struct Brain {
+  map: Array2<ResourceProbability>,
+  home: (usize, usize),
+  dest: (usize, usize),
+}
 
 impl Brain {
   fn gen<R: Rng>(rng: &mut R, width: usize, height: usize) -> Self {
-    Self(Array2::from_shape_simple_fn((width, height), || {
-      ResourceProbability::gen(rng)
-    }))
-  }
-
-  fn width(&self) -> usize {
-    self.0.shape()[0]
-  }
-
-  fn height(&self) -> usize {
-    self.0.shape()[1]
+    Self {
+      map: Array2::from_shape_simple_fn((width, height), || {
+        ResourceProbability::gen(rng)
+      }),
+      home: (rng.gen_range(0..width), rng.gen_range(0..height)),
+      dest: (rng.gen_range(0..width), rng.gen_range(0..height)),
+    }
   }
 
   fn draw(&self, img: &mut SubImage<&mut RgbImage>) {
-    for ((x, y), v) in self.0.indexed_iter() {
+    for ((x, y), v) in self.map.indexed_iter() {
       *img.get_pixel_mut(x as u32, y as u32) = Color::from(v).into();
     }
+
+    *img.get_pixel_mut(self.home.0 as u32, self.home.1 as u32) =
+      Rgb([255, 255, 0]);
+
+    *img.get_pixel_mut(self.dest.0 as u32, self.dest.1 as u32) =
+      Rgb([255, 0, 255]);
   }
 }
 
