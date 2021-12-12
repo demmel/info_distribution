@@ -3,7 +3,7 @@ mod graphics;
 use enum_ordinalize::Ordinalize;
 use graphics::{Color, ColorMixer, ImageGrid};
 use image::{GenericImage, Rgb, RgbImage, SubImage};
-use ndarray::{s, Array2, Array3, Axis};
+use ndarray::{s, Array2, Array3, Axis, Zip};
 use rand::prelude::*;
 use show_image::{
   create_window,
@@ -96,20 +96,28 @@ impl State {
     // Perception
     for person in self.people.iter_mut() {
       let sense_range = 5;
+
       let min_x = person.x.saturating_sub(sense_range);
       let max_x = (person.x + sense_range).min(self.map.width());
 
       let min_y = person.y.saturating_sub(sense_range);
       let max_y = (person.y + sense_range).min(self.map.height());
 
-      person
-        .brain
-        .map
-        .slice_mut(s![min_x..max_x, min_y..max_y])
-        .zip_mut_with(
-          &self.map.0.slice(s![min_x..max_x, min_y..max_y]),
-          |b, m| b.average_assign(&ResourceProbability::certain(*m)),
-        );
+      Zip::indexed(person.brain.map.slice_mut(s![min_x..max_x, min_y..max_y]))
+        .and(self.map.0.slice(s![min_x..max_x, min_y..max_y]))
+        .for_each(|(x, y), b, m| {
+          let x = min_x + x;
+          let y = min_y + y;
+
+          let dist = ((person.x as f64 - x as f64).powi(2)
+            + (person.y as f64 - y as f64).powi(2))
+          .sqrt();
+
+          let certainty =
+            (sense_range as f64 - dist).max(0.0) / sense_range as f64;
+
+          b.average_assign(&ResourceProbability::probable(*m, certainty))
+        });
     }
 
     // Move
@@ -369,6 +377,15 @@ impl ResourceProbability {
   fn certain(resource: Resource) -> Self {
     let mut inner = [0.0; Resource::variant_count()];
     inner[resource.ordinal() as usize] = 1.0;
+    Self(inner)
+  }
+
+  fn probable(resource: Resource, p: f64) -> Self {
+    let even = 1.0 / Resource::variant_count() as f64;
+    let subject = even + (1.0 - even) * p;
+    let rest = (1.0 - subject) / (Resource::variant_count() - 1) as f64;
+    let mut inner = [rest; Resource::variant_count()];
+    inner[resource.ordinal() as usize] = subject;
     Self(inner)
   }
 
