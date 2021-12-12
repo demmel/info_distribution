@@ -95,7 +95,7 @@ impl State {
 
     // Perception
     for person in self.people.iter_mut() {
-      let sense_range = 5;
+      let sense_range = 10;
 
       let min_x = person.x.saturating_sub(sense_range);
       let max_x = (person.x + sense_range).min(self.map.width());
@@ -116,7 +116,10 @@ impl State {
           let certainty =
             (sense_range as f64 - dist).max(0.0) / sense_range as f64;
 
-          b.average_assign(&ResourceProbability::probable(*m, certainty))
+          b.adjust_towards(
+            &ResourceProbability::probable(*m, certainty),
+            certainty * certainty,
+          );
         });
     }
 
@@ -170,10 +173,10 @@ impl State {
       let b_share = b.brain.map.indexed_iter().choose_multiple(&mut rng, 100);
 
       for (i, share) in b_share {
-        a.brain.map[i].average_assign(share);
+        a.brain.map[i].adjust_towards(share, 0.5);
       }
       for (i, share) in a_share {
-        b.brain.map[i].average_assign(&share);
+        b.brain.map[i].adjust_towards(&share, 0.5);
       }
     }
   }
@@ -402,6 +405,13 @@ impl ResourceProbability {
     .unwrap()
   }
 
+  fn normalize(&mut self) {
+    let total: f64 = self.0.iter().sum();
+    for v in self.0.iter_mut() {
+      *v /= total;
+    }
+  }
+
   fn resdistribute(&mut self, percent: f64) {
     let len = self.0.len() as f64;
     for v in self.0.iter_mut() {
@@ -410,10 +420,16 @@ impl ResourceProbability {
     }
   }
 
-  fn average_assign(&mut self, other: &Self) {
+  fn adjust_towards(&mut self, other: &Self, trust: f64) {
     for (v, o) in self.0.iter_mut().zip(other.0.iter()) {
-      *v = (*v + *o) / 2.0;
+      let bias = (0.5 - *v).abs() / 0.5;
+      let other_bias = (0.5 - *o).abs() / 0.5;
+      let trust_influence = (0.5 - trust).abs() / 0.5;
+      let bias_weight = (1.0 - trust) * trust_influence
+        + (bias * other_bias * 0.5 + 0.5) * (1.0 - trust_influence);
+      *v = *v * bias_weight + *o * (1.0 - bias_weight);
     }
+    self.normalize();
   }
 }
 
