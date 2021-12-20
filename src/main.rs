@@ -1,10 +1,14 @@
+mod config;
 mod graphics;
 mod map;
+mod ndarray_pad;
 mod person;
 mod resource;
 
+use config::{HUNGER_PER_FOOD, THIRST_PER_WATER};
 use image::{GenericImage, Rgb, RgbImage};
 use ndarray::{s, Array2, Array3, Axis, Zip};
+use person::Needs;
 use rand::prelude::*;
 use show_image::{
   create_window,
@@ -70,6 +74,10 @@ impl State {
         brain: Brain::gen(rng, map.width(), map.height()),
         x: rng.gen_range(0..map.width()),
         y: rng.gen_range(0..map.height()),
+        needs: Needs {
+          hunger: 0,
+          thirst: 0,
+        },
       })
       .collect();
 
@@ -93,6 +101,13 @@ impl State {
 
   fn update(&mut self) {
     let mut rng = thread_rng();
+
+    // Needs increase
+    for person in self.people.iter_mut() {
+      person.needs.hunger += 1;
+      person.needs.thirst += 1;
+    }
+    self.people.retain(|p| p.needs.met());
 
     // Memory degradation
     for person in self.people.iter_mut() {
@@ -131,17 +146,36 @@ impl State {
 
     // Move
     for person in self.people.iter_mut() {
-      let dx = person.brain.dest.0 as isize - person.x as isize;
-      let dy = person.brain.dest.1 as isize - person.y as isize;
+      let favorability = person.favorability_map();
+      let dest = favorability
+        .indexed_iter()
+        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+        .unwrap()
+        .0;
+      let dx = dest.0 as isize - person.x as isize;
+      let dy = dest.1 as isize - person.y as isize;
 
       if dx == 0 && dy == 0 {
-        if person.x == person.brain.home.0 && person.y == person.brain.home.1 {
-          person.brain.dest = (
-            rng.gen_range(0..self.map.width()),
-            rng.gen_range(0..self.map.height()),
-          );
-        } else {
-          person.brain.dest = person.brain.home;
+        let consumed_cell = self.map.0.get_mut((person.x, person.y)).unwrap();
+        match consumed_cell {
+          Resource::None => {}
+          Resource::Food => {
+            if person.needs.hunger >= HUNGER_PER_FOOD {
+              person.needs.hunger -= HUNGER_PER_FOOD;
+              *consumed_cell = Resource::None;
+              person.brain.map[(person.x, person.y)] =
+                ResourceProbability::probable(Resource::None, 1.0);
+            }
+          }
+          Resource::Water => {
+            if person.needs.thirst >= THIRST_PER_WATER {
+              person.needs.thirst -= THIRST_PER_WATER;
+              *consumed_cell = Resource::None;
+              person.brain.map[(person.x, person.y)] =
+                ResourceProbability::probable(Resource::None, 1.0);
+            }
+          }
+          Resource::Stone => {}
         }
       } else if dx.abs() > dy.abs() {
         person.x = (person.x as isize + dx.signum()) as usize;
@@ -189,7 +223,6 @@ impl State {
 
   fn draw(&self) -> RgbImage {
     let mut img = ImageGrid::new(self.map.width(), self.map.height(), 3, 2);
-    let selected_person = &self.people[self.selected_person];
 
     {
       let mut buffer = img.grid_mut(0, 0);
@@ -207,34 +240,6 @@ impl State {
           } else {
             Rgb([255, 0, 0])
           };
-      }
-    }
-
-    {
-      let mut buffer = img.grid_mut(1, 0);
-
-      selected_person.brain.draw(&mut buffer);
-    }
-
-    {
-      let mut buffer = img.grid_mut(2, 0);
-
-      let error = Array2::from_shape_vec(
-        self.map.0.raw_dim(),
-        selected_person
-          .brain
-          .map
-          .map(|v| v.plurality())
-          .iter()
-          .zip(self.map.0.iter())
-          .map(|(b, m)| b != m)
-          .collect(),
-      )
-      .unwrap();
-
-      for ((x, y), v) in error.indexed_iter() {
-        let as_u8 = if *v { 255 } else { 0 };
-        *buffer.get_pixel_mut(x as u32, y as u32) = Rgb([as_u8, as_u8, as_u8]);
       }
     }
 
@@ -281,6 +286,57 @@ impl State {
       }
     }
 
+    self.draw_selected_person(&mut img);
+
     img.into_inner()
+  }
+
+  fn draw_selected_person(&self, img: &mut ImageGrid) {
+    let selected_person =
+      if let Some(selected_person) = self.people.get(self.selected_person) {
+        selected_person
+      } else {
+        return;
+      };
+
+    {
+      let mut buffer = img.grid_mut(1, 0);
+
+      selected_person.brain.draw(&mut buffer);
+    }
+
+    {
+      let mut buffer = img.grid_mut(1, 1);
+
+      let favorability = selected_person.favorability_map();
+      let max = favorability.fold(0.0f64, |acc, cur| acc.max(*cur));
+
+      for ((x, y), v) in selected_person.favorability_map().indexed_iter() {
+        let as_u8 = ((*v / max) * 255.0) as u8;
+        *buffer.get_pixel_mut(x as u32, y as u32) = Rgb([as_u8, as_u8, as_u8]);
+      }
+    }
+
+    {
+      let mut buffer = img.grid_mut(2, 0);
+
+      let error = Array2::from_shape_vec(
+        self.map.0.raw_dim(),
+        selected_person
+          .brain
+          .map
+          .map(|v| v.plurality())
+          .iter()
+          .zip(self.map.0.iter())
+          .map(|(b, m)| b != m)
+          .collect(),
+      )
+      .unwrap();
+
+      for ((x, y), v) in error.indexed_iter() {
+        let as_u8 = if *v { 255 } else { 0 };
+        *buffer.get_pixel_mut(x as u32, y as u32) = Rgb([as_u8, as_u8, as_u8]);
+      }
+    }
   }
 }
