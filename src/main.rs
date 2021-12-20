@@ -10,6 +10,7 @@ use std::sync::mpsc::TryRecvError;
 use config::{HUNGER_PER_FOOD, THIRST_PER_WATER};
 use image::{GenericImage, Rgb, RgbImage};
 use ndarray::{s, Array2, Array3, Axis, Zip};
+use ndarray_pad::{ArrayPaddingExt, ArrayPaddingKind};
 use person::Needs;
 use rand::prelude::*;
 use show_image::{
@@ -113,6 +114,25 @@ impl State {
   fn update(&mut self) {
     let mut rng = thread_rng();
 
+    // Map mutation
+    self.map.0 = Array2::from_shape_vec(
+      self.map.0.raw_dim(),
+      self
+        .map
+        .0
+        .pad((1, 1), ArrayPaddingKind::Clamp)
+        .windows((3, 3))
+        .into_iter()
+        .map(|w| match rng.gen_range(0..1000) {
+          0..=989 => w[(1, 1)],
+          990..=998 => *w.iter().choose(&mut rng).unwrap(),
+          999 => *Resource::variants().choose(&mut rng).unwrap(),
+          _ => unreachable!(),
+        })
+        .collect(),
+    )
+    .unwrap();
+
     // Needs increase
     for person in self.people.iter_mut() {
       person.needs.hunger += 1;
@@ -122,7 +142,7 @@ impl State {
 
     // Memory degradation
     for person in self.people.iter_mut() {
-      person.brain.map.map_inplace(|v| v.resdistribute(0.001));
+      person.brain.map.map_inplace(|v| v.resdistribute(0.0001));
     }
 
     // Perception
