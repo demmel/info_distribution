@@ -5,6 +5,8 @@ mod ndarray_pad;
 mod person;
 mod resource;
 
+use std::sync::mpsc::TryRecvError;
+
 use config::{HUNGER_PER_FOOD, THIRST_PER_WATER};
 use image::{GenericImage, Rgb, RgbImage};
 use ndarray::{s, Array2, Array3, Axis, Zip};
@@ -30,6 +32,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
   let mut rng = thread_rng();
 
   let mut state = State::gen(&mut rng);
+  let mut running = false;
 
   let window = create_window(
     "Info Distribution",
@@ -40,23 +43,31 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
   )?;
   window.set_image("image", state.draw())?;
 
-  for event in window.event_channel()? {
-    if let WindowEvent::KeyboardInput(event) = event {
-      if !event.input.state.is_pressed() {
-        continue;
+  let window_events = window.event_channel()?;
+  loop {
+    match window_events.try_recv() {
+      Ok(WindowEvent::KeyboardInput(event)) => {
+        if !event.input.state.is_pressed() {
+          continue;
+        }
+        match event.input.key_code {
+          Some(VirtualKeyCode::Escape) => return Ok(()),
+          Some(VirtualKeyCode::Left) => state.select_previous_person(),
+          Some(VirtualKeyCode::Right) => state.select_next_person(),
+          Some(VirtualKeyCode::Space) if !running => state.update(),
+          Some(VirtualKeyCode::S) => running = !running,
+          _ => continue,
+        }
+        window.set_image("image", state.draw())?;
       }
-      match event.input.key_code {
-        Some(VirtualKeyCode::Escape) => return Ok(()),
-        Some(VirtualKeyCode::Left) => state.select_previous_person(),
-        Some(VirtualKeyCode::Right) => state.select_next_person(),
-        Some(VirtualKeyCode::Space) => state.update(),
-        _ => continue,
+      Err(TryRecvError::Empty) if running => {
+        state.update();
+        window.set_image("image", state.draw())?;
       }
-      window.set_image("image", state.draw())?;
+      Err(TryRecvError::Disconnected) => return Ok(()),
+      _ => continue,
     }
   }
-
-  Ok(())
 }
 
 struct State {
