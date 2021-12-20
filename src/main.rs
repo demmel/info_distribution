@@ -212,16 +212,21 @@ impl State {
         break;
       };
 
+      let num_share = 500;
       let (a_i, a_share): (Vec<_>, Vec<_>) = a
         .brain
         .map
         .indexed_iter()
-        .choose_multiple(&mut rng, 100)
+        .choose_multiple(&mut rng, num_share)
         .into_iter()
         .unzip();
       let a_share: Vec<_> =
         a_i.into_iter().zip(a_share.into_iter().cloned()).collect();
-      let b_share = b.brain.map.indexed_iter().choose_multiple(&mut rng, 100);
+      let b_share = b
+        .brain
+        .map
+        .indexed_iter()
+        .choose_multiple(&mut rng, num_share);
 
       for (i, share) in b_share {
         a.brain.map[i].adjust_towards(share, 0.5);
