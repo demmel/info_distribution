@@ -123,10 +123,10 @@ impl State {
         .pad((1, 1), ArrayPaddingKind::Clamp)
         .windows((3, 3))
         .into_iter()
-        .map(|w| match rng.gen_range(0..1000) {
-          0..=989 => w[(1, 1)],
-          990..=998 => *w.iter().choose(&mut rng).unwrap(),
-          999 => *Resource::variants().choose(&mut rng).unwrap(),
+        .map(|w| match rng.gen_range(0..10000) {
+          0..=9989 => w[(1, 1)],
+          9990..=9998 => *w.iter().choose(&mut rng).unwrap(),
+          9999 => *Resource::variants().choose(&mut rng).unwrap(),
           _ => unreachable!(),
         })
         .collect(),
@@ -207,6 +207,7 @@ impl State {
             }
           }
           Resource::Stone => {}
+          Resource::Ghost => {}
         }
       } else if dx.abs() > dy.abs() {
         person.x = (person.x as isize + dx.signum()) as usize;
@@ -345,10 +346,11 @@ impl State {
       let mut buffer = img.grid_mut(1, 1);
 
       let favorability = selected_person.favorability_map();
+      let min = favorability.fold(0.0f64, |acc, cur| acc.min(*cur));
       let max = favorability.fold(0.0f64, |acc, cur| acc.max(*cur));
 
       for ((x, y), v) in selected_person.favorability_map().indexed_iter() {
-        let as_u8 = ((*v / max) * 255.0) as u8;
+        let as_u8 = (((*v - min) / (max - min)) * 255.0) as u8;
         *buffer.get_pixel_mut(x as u32, y as u32) = Rgb([as_u8, as_u8, as_u8]);
       }
     }

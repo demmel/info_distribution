@@ -32,6 +32,7 @@ impl Person {
         .map(|b| {
           b.get(Resource::Food) * hunger_percent
             + b.get(Resource::Water) * thirst_percent
+            - b.get(Resource::Ghost) * 1.0
         })
         .pad((2, 2), ArrayPaddingKind::Constant(0.0))
         .windows((5, 5))
