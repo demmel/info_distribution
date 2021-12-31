@@ -6,13 +6,14 @@ use ndarray::Array2;
 use rand::distributions::WeightedIndex;
 use rand::prelude::*;
 
+use crate::config::NUM_BIOMES;
 use crate::resource::Resource;
 
 pub(crate) struct Map(pub(crate) Array2<Resource>);
 
 impl Map {
   pub(crate) fn gen<R: Rng>(rng: &mut R, width: usize, height: usize) -> Self {
-    let biomes: Vec<_> = (0..500)
+    let biomes: Vec<_> = (0..NUM_BIOMES)
       .map(|_| {
         (
           rng.gen_range(0..width),

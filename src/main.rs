@@ -7,7 +7,9 @@ mod resource;
 
 use std::sync::mpsc::TryRecvError;
 
-use config::{HUNGER_PER_FOOD, THIRST_PER_WATER};
+use config::{
+  HUNGER_PER_FOOD, MAP_HEIGHT, MAP_WIDTH, NUM_PEROPLE, THIRST_PER_WATER,
+};
 use image::{GenericImage, Rgb, RgbImage};
 use ndarray::{s, Array2, Array3, Axis, Zip};
 use ndarray_pad::{ArrayPaddingExt, ArrayPaddingKind};
@@ -79,9 +81,9 @@ struct State {
 
 impl State {
   fn gen<R: Rng>(rng: &mut R) -> Self {
-    let map = Map::gen(rng, 200, 200);
+    let map = Map::gen(rng, MAP_WIDTH, MAP_HEIGHT);
 
-    let people: Vec<_> = (0..10)
+    let people: Vec<_> = (0..NUM_PEROPLE)
       .map(|_| Person {
         brain: Brain::gen(rng, map.width(), map.height()),
         x: rng.gen_range(0..map.width()),
