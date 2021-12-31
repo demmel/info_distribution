@@ -9,7 +9,10 @@ use rand::prelude::*;
 use crate::config::NUM_BIOMES;
 use crate::resource::Resource;
 
-pub(crate) struct Map(pub(crate) Array2<Resource>);
+pub(crate) struct Map {
+  pub(crate) resources: Array2<Resource>,
+  pub(crate) biomes: Biomes,
+}
 
 impl Map {
   pub(crate) fn gen<R: Rng>(rng: &mut R, width: usize, height: usize) -> Self {
@@ -23,40 +26,52 @@ impl Map {
       })
       .collect();
 
-    Self(Array2::from_shape_fn((width, height), |(x, y)| {
-      biomes
-        .iter()
-        .map(|(ox, oy, b)| {
-          (
-            ((x as f64 - *ox as f64).powi(2) + (y as f64 - *oy as f64).powi(2))
-              .sqrt(),
-            b,
-          )
-        })
-        .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
-        .unwrap()
-        .1
-        .gen_resource(rng)
-    }))
+    let biomes = Biomes(biomes);
+    Self {
+      resources: Array2::from_shape_fn((width, height), |(x, y)| {
+        biomes.get_biome(x, y).gen_resource(rng)
+      }),
+      biomes,
+    }
   }
 
   pub(crate) fn width(&self) -> usize {
-    self.0.shape()[0]
+    self.resources.shape()[0]
   }
 
   pub(crate) fn height(&self) -> usize {
-    self.0.shape()[1]
+    self.resources.shape()[1]
   }
 
   pub(crate) fn draw(&self, img: &mut SubImage<&mut RgbImage>) {
-    for ((x, y), v) in self.0.indexed_iter() {
+    for ((x, y), v) in self.resources.indexed_iter() {
       *img.get_pixel_mut(x as u32, y as u32) = v.color().into();
     }
   }
 }
 
+pub(crate) struct Biomes(Vec<(usize, usize, Biome)>);
+
+impl Biomes {
+  pub(crate) fn get_biome(&self, x: usize, y: usize) -> &Biome {
+    self
+      .0
+      .iter()
+      .map(|(ox, oy, b)| {
+        (
+          ((x as f64 - *ox as f64).powi(2) + (y as f64 - *oy as f64).powi(2))
+            .sqrt(),
+          b,
+        )
+      })
+      .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
+      .unwrap()
+      .1
+  }
+}
+
 #[derive(Ordinalize)]
-enum Biome {
+pub(crate) enum Biome {
   Plains,
   Lake,
   Mountain,
@@ -68,7 +83,7 @@ impl Biome {
     Biome::from_ordinal(rng.gen_range(0..Biome::variant_count() as i8)).unwrap()
   }
 
-  fn gen_resource<R: Rng>(&self, rng: &mut R) -> Resource {
+  pub(crate) fn gen_resource<R: Rng>(&self, rng: &mut R) -> Resource {
     let weights = match self {
       Biome::Plains => [0.2, 0.75, 0.0, 0.05, 0.0],
       Biome::Lake => [0.0, 0.0, 1.0, 0.0, 0.0],

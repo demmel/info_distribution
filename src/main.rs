@@ -117,23 +117,21 @@ impl State {
     let mut rng = thread_rng();
 
     // Map mutation
-    self.map.0 = Array2::from_shape_vec(
-      self.map.0.raw_dim(),
-      self
-        .map
-        .0
-        .pad((1, 1), ArrayPaddingKind::Clamp)
-        .windows((3, 3))
-        .into_iter()
-        .map(|w| match rng.gen_range(0..10000) {
-          0..=9989 => w[(1, 1)],
-          9990..=9998 => *w.iter().choose(&mut rng).unwrap(),
-          9999 => *Resource::variants().choose(&mut rng).unwrap(),
+    {
+      let paddded = self.map.resources.pad((1, 1), ArrayPaddingKind::Clamp);
+      let windows: Vec<_> = paddded.windows((3, 3)).into_iter().collect();
+      let resources = &mut self.map.resources;
+      let biomes = &self.map.biomes;
+      for (((x, y), r), w) in resources.indexed_iter_mut().zip(windows) {
+        *r = match rng.gen_range(0..1_000_000) {
+          0..=999_899 => w[(1, 1)],
+          999_900..=999_989 => *w.iter().choose(&mut rng).unwrap(),
+          999_990..=999_998 => biomes.get_biome(x, y).gen_resource(&mut rng),
+          999_999 => *Resource::variants().choose(&mut rng).unwrap(),
           _ => unreachable!(),
-        })
-        .collect(),
-    )
-    .unwrap();
+        };
+      }
+    }
 
     // Needs increase
     for person in self.people.iter_mut() {
@@ -158,7 +156,7 @@ impl State {
       let max_y = (person.y + sense_range).min(self.map.height());
 
       Zip::indexed(person.brain.map.slice_mut(s![min_x..max_x, min_y..max_y]))
-        .and(self.map.0.slice(s![min_x..max_x, min_y..max_y]))
+        .and(self.map.resources.slice(s![min_x..max_x, min_y..max_y]))
         .for_each(|(x, y), b, m| {
           let x = min_x + x;
           let y = min_y + y;
@@ -189,7 +187,8 @@ impl State {
       let dy = dest.1 as isize - person.y as isize;
 
       if dx == 0 && dy == 0 {
-        let consumed_cell = self.map.0.get_mut((person.x, person.y)).unwrap();
+        let consumed_cell =
+          self.map.resources.get_mut((person.x, person.y)).unwrap();
         match consumed_cell {
           Resource::None => {}
           Resource::Food => {
@@ -299,10 +298,10 @@ impl State {
       });
 
       let error = Array2::from_shape_vec(
-        self.map.0.raw_dim(),
+        self.map.resources.raw_dim(),
         collective_view
           .iter()
-          .zip(self.map.0.iter())
+          .zip(self.map.resources.iter())
           .map(|(b, m)| b != m)
           .collect(),
       )
@@ -350,13 +349,13 @@ impl State {
       let mut buffer = img.grid_mut(2, 0);
 
       let error = Array2::from_shape_vec(
-        self.map.0.raw_dim(),
+        self.map.resources.raw_dim(),
         selected_person
           .brain
           .map
           .map(|v| v.plurality())
           .iter()
-          .zip(self.map.0.iter())
+          .zip(self.map.resources.iter())
           .map(|(b, m)| b != m)
           .collect(),
       )
