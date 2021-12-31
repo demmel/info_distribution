@@ -70,9 +70,9 @@ impl Biome {
 
   fn gen_resource<R: Rng>(&self, rng: &mut R) -> Resource {
     let weights = match self {
-      Biome::Plains => [0.25, 0.75, 0.0, 0.0, 0.0],
+      Biome::Plains => [0.2, 0.75, 0.0, 0.05, 0.0],
       Biome::Lake => [0.0, 0.0, 1.0, 0.0, 0.0],
-      Biome::Mountain => [0.0, 0.0, 0.0, 1.0, 0.0],
+      Biome::Mountain => [0.05, 0.05, 0.05, 0.85, 0.0],
       Biome::Graveyard => [0.9, 0.0, 0.0, 0.05, 0.05],
     };
     Resource::from_ordinal(
