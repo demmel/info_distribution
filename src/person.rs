@@ -63,8 +63,8 @@ impl Person {
 }
 
 pub(crate) struct Needs {
-  pub(crate) hunger: u8,
-  pub(crate) thirst: u8,
+  pub(crate) hunger: u16,
+  pub(crate) thirst: u16,
 }
 
 impl Needs {
