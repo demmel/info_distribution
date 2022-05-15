@@ -89,7 +89,7 @@ impl Brain {
 
   pub(crate) fn draw(&self, img: &mut SubImage<&mut RgbImage>) {
     for ((x, y), v) in self.map.indexed_iter() {
-      *img.get_pixel_mut(x as u32, y as u32) = Color::from(v).into();
+      img.put_pixel(x as u32, y as u32, Color::from(v).into());
     }
   }
 }

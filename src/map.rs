@@ -45,7 +45,7 @@ impl Map {
 
   pub(crate) fn draw(&self, img: &mut SubImage<&mut RgbImage>) {
     for ((x, y), v) in self.resources.indexed_iter() {
-      *img.get_pixel_mut(x as u32, y as u32) = v.color().into();
+      img.put_pixel(x as u32, y as u32, v.color().into());
     }
   }
 }

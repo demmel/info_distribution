@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 rand = "0.8.4"
-show-image = { version = "0.10.1", features = ["image"] }
-image = "0.23.14"
+show-image = { version = "0.12.1", features = ["image"] }
+image = "0.24.2"
 ndarray = "0.15.4"
 enum-ordinalize = "3.1.10"

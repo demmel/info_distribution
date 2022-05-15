@@ -261,12 +261,15 @@ impl State {
       let mut buffer = img.grid_mut(0, 1);
 
       for (i, person) in self.people.iter().enumerate() {
-        *buffer.get_pixel_mut(person.x as u32, person.y as u32) =
+        buffer.put_pixel(
+          person.x as u32,
+          person.y as u32,
           if self.selected_person == i {
             Rgb([255, 255, 255])
           } else {
             Rgb([255, 0, 0])
-          };
+          },
+        );
       }
     }
 
@@ -309,7 +312,7 @@ impl State {
 
       for ((x, y), v) in error.indexed_iter() {
         let as_u8 = if *v { 255 } else { 0 };
-        *buffer.get_pixel_mut(x as u32, y as u32) = Rgb([as_u8, as_u8, as_u8]);
+        buffer.put_pixel(x as u32, y as u32, Rgb([as_u8, as_u8, as_u8]));
       }
     }
 
@@ -341,7 +344,7 @@ impl State {
 
       for ((x, y), v) in selected_person.favorability_map().indexed_iter() {
         let as_u8 = (((*v - min) / (max - min)) * 255.0) as u8;
-        *buffer.get_pixel_mut(x as u32, y as u32) = Rgb([as_u8, as_u8, as_u8]);
+        buffer.put_pixel(x as u32, y as u32, Rgb([as_u8, as_u8, as_u8]));
       }
     }
 
@@ -363,7 +366,7 @@ impl State {
 
       for ((x, y), v) in error.indexed_iter() {
         let as_u8 = if *v { 255 } else { 0 };
-        *buffer.get_pixel_mut(x as u32, y as u32) = Rgb([as_u8, as_u8, as_u8]);
+        buffer.put_pixel(x as u32, y as u32, Rgb([as_u8, as_u8, as_u8]));
       }
     }
   }
